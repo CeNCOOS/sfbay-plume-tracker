@@ -30,6 +30,7 @@ def make_map():
     ax.set_ylim(37.5,38.)
     return(fig, ax)
 
+
 def make_map_colorbar():
     fig = plt.figure(figsize=(12,9))
     gs = fig.add_gridspec(2, 1, height_ratios=[4, 1],hspace=.75)
@@ -41,6 +42,7 @@ def make_map_colorbar():
     ax.set_ylim(37.5,38.)
     ax_cb = fig.add_subplot(gs[1])
     return(fig, ax, ax_cb)
+
 
 def plot_radars(current_time, radar, ax):
     ''' '''
@@ -67,6 +69,7 @@ def custom_div_cmap(numcolors=11, name='custom_div_cmap',
                                              colors =[mincol, midcol, maxcol],
                                              N=numcolors)
     return cmap
+
 
 def make_bathy_map(bathy):
     fig, ax, ax_tides = make_map_colorbar()
@@ -148,7 +151,7 @@ def make_animation(model_output,base_folder='/home/pdaniel/SurfaceCurrentMaps/Da
         time_diff = df.loc[(i)].index[0] - start_time
         time_diff = int(time_diff.total_seconds() / 3600)
         df.loc[(i)]['start_group'] = time_diff
-    
+    last_pos = df.query('status == 1') # Last time and postition (ie washed up?) for each particle
     norm = mcolors.Normalize(vmin=0, vmax=24)
     start_time_ts = df.index.get_level_values(1)[0]
     
@@ -174,6 +177,8 @@ def make_animation(model_output,base_folder='/home/pdaniel/SurfaceCurrentMaps/Da
                 else:
                     ax.plot(plot_df['lon'], plot_df['lat'], color=cm.cm.algae((norm(plot_df['start_group'].iloc[0]))),alpha=.75);
                     im = ax.scatter(plot_df.iloc[-1]['lon'], plot_df.iloc[-1]['lat'], c=np.array([cm.cm.algae(norm(plot_df['start_group'].iloc[0]))]),zorder=210, edgecolors='k');
+        out_of_model = last_pos.query('time <= @current_time')
+        ax.scatter(out_of_model['lon'],out_of_model['lat'],c=np.array([cm.cm.algae(norm(out_of_model['start_group']))])[0],zorder=211, edgecolors='k',marker='x')
         plt.text(.02,.95,"time step: {}".format(j), transform=ax.transAxes)
         plt.text(.02,.925,"time: {}".format(current_time), transform=ax.transAxes)
         # cbar = plt.colorbar(im,cmap=cm.cm.algae, norm=norm)
@@ -207,7 +212,7 @@ def copy_file_to_webserver(fname):
 
 
 if __name__ ==  "__main__":
-    model_output = 'concave_hrf_20210120T012700_continuous.nc'
+    model_output = 'concave_hrf_20210127T090600_continuous.nc'
     make_animation(model_output)
     
     

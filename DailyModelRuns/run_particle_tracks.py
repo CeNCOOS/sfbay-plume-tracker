@@ -62,7 +62,7 @@ class ModelTracker():
 
         if self.continuous:
             time_step = timedelta(minutes=60)
-            num_steps = 24
+            num_steps = 14
             for i in range(num_steps+1):
                 self.o.seed_elements(
                     lon=self.seed_coords[0], 
