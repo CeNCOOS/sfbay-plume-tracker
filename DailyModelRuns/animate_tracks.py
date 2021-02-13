@@ -5,13 +5,17 @@ import numpy as np
 import pandas as pd
 import datetime as dt
 from datetime import timedelta
+import seaborn as sns
 import cmocean as cm
+from shapely.geometry import Point, Polygon
 import os
 import cartopy.crs as ccrs
 import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 import matplotlib.colorbar as mcbar
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+import geopandas as gpd
 from IPython.display import HTML, display
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import warnings
@@ -124,6 +128,87 @@ def build_gif(frame_directory, fp_out):
             save_all=True, duration=100, loop=0)
 
 
+def make_barplot_data(df, ds, polygons):
+    """[summary]
+    """
+    in_bay = []
+    in_pacifica = []
+    in_balinas = []
+    time = []
+    total = []
+    crs = {'init': 'epsg:4326'}
+    for j, t in enumerate(pd.to_datetime(ds['time'].values)):
+        step_df = df.query("time == @t").reset_index('time',drop=True).query("status >= 0")
+        total.append(len(step_df))
+        points = gpd.GeoDataFrame(
+                step_df, geometry=gpd.points_from_xy(step_df.lon, step_df.lat),crs=crs)
+        in_balinas.append(points.within(polygons.loc[0, 'geometry']).sum())
+        in_pacifica.append(points.within(polygons.loc[1, 'geometry']).sum())
+        in_bay.append(points.within(polygons.loc[2, 'geometry']).sum())
+        time.append(t)
+
+    d = {
+        'time':time,
+        'bay':in_bay,
+        'pacifica':in_pacifica,
+        'balinas':in_balinas,
+        'num_part':total
+    }
+
+    df_locs = pd.DataFrame(d)
+    df_locs['bay_norm'] = df_locs['bay']/df_locs['num_part'] * 100
+    df_locs['pacifica_norm'] = df_locs['pacifica']/df_locs['num_part'] * 100
+    df_locs['balinas_norm'] = df_locs['balinas']/df_locs['num_part'] * 100
+    return df_locs
+
+
+def load_polygons():
+    """ Create and return a geopandas dataframe with each of the polygons if interest
+
+    Returns:
+        geopandas.GeoDataFrame: dataframe with each of the polygons of AOI that are geographically references to WGS84
+    """
+    pacifica = [(-122.4886322, 37.6772991),
+        (-122.5037384, 37.6762122),
+        (-122.5435638, 37.6000882),
+        (-122.5009918, 37.5810450),
+        (-122.4824524, 37.6071601),
+        (-122.4838257, 37.6463157),
+        (-122.4886322, 37.6778426)]
+
+    balinas = [(-122.7145386, 37.9111589),
+        (-122.7282715, 37.8884023),
+        (-122.6513672, 37.8710593),
+        (-122.6074219, 37.8575072),
+        (-122.5778961, 37.8721433),
+        (-122.6589203, 37.9160343),
+        (-122.7131653, 37.9127841)]
+
+    in_bay = [
+        (-122.5277710, 37.8287685),
+        (-122.5037384, 37.7766850),
+        (-122.3986816, 37.7962206),
+        (-122.4179077, 37.8656387),
+        (-122.4879456, 37.8477481),
+        (-122.5112915, 37.8390723),
+        (-122.5270844, 37.8298532)]
+    crs = {'init': 'epsg:4326'}
+    d = {'box': ['balinas', 'pacifica','in_bay'], 'geometry': [Polygon(balinas),Polygon(pacifica),Polygon(in_bay)]}
+    return gpd.GeoDataFrame(d, crs=crs)
+
+def make_bar_chart(ax, df, index):   
+    """Save a frame for to be patched for a gif"""
+    sns.set_style("ticks")
+    temp = pd.DataFrame(df.loc[index][['bay_norm','pacifica_norm','balinas_norm']])
+    sns.barplot(x=temp.index, y=index, data=temp,ax=ax)
+    ax.set_ylabel("% of particles")
+    ax.set_ylim(0,100)
+    ax.set_xticklabels(['Golden Gate','Pacifica','Balinas'])
+    # ax.set_title("TimeStep: {}".format(temp.columns[0]))
+    sns.despine(ax=ax)
+    plt.xticks(rotation=45)
+
+
 def make_animation(model_output,base_folder='/home/pdaniel/SurfaceCurrentMaps/DailyModelRuns/model_output/'):
     hfr2 = xr.open_dataset("http://hfrnet-tds.ucsd.edu/thredds/dodsC/HFR/USWC/2km/hourly/RTV/HFRADAR_US_West_Coast_2km_Resolution_Hourly_RTV_best.ncd")
     
@@ -132,6 +217,10 @@ def make_animation(model_output,base_folder='/home/pdaniel/SurfaceCurrentMaps/Da
     df = ds['status'].to_dataframe()
     df = df[df['status'] >= 0  ] # remove data rows were trajectory is not yet deployed
     df['start_group'] = 0
+
+    # Make data for barplots in areas of interest
+    polygons = load_polygons()
+    aoi_df = make_barplot_data(df=df, ds=ds, polygons=polygons)
 
     # Load Tide Data
     matplotlib.rcParams['contour.negative_linestyle'] = 'solid'      
@@ -152,18 +241,24 @@ def make_animation(model_output,base_folder='/home/pdaniel/SurfaceCurrentMaps/Da
         time_diff = int(time_diff.total_seconds() / 3600)
         df.loc[(i)]['start_group'] = time_diff
     last_pos = df.query('status == 1') # Last time and postition (ie washed up?) for each particle
-    norm = mcolors.Normalize(vmin=0, vmax=24)
+    norm = mcolors.Normalize(vmin=0, vmax=12)
     start_time_ts = df.index.get_level_values(1)[0]
-    
+
     ## Loop through each timestep and make an image for each frame.
     for j, t in enumerate(tqdm(pd.to_datetime(ds['time'].values))):
         current_time = t
         tail_time = current_time - timedelta(hours=3)
         bathy=None
         fig, ax, ax_tide = make_bathy_map(bathy=bathy)
+        ax_inset = inset_axes(ax, width=1.5, height=1.5)
+        make_bar_chart(ax=ax_inset, df=aoi_df, index=j)
         plot_radars(t, hfr2, ax)
+        polygons.plot(ax=ax, alpha=.25,lw=3,edgecolor='k')
+        polygons.plot(ax=ax,lw=1,edgecolor='k',facecolor='None')
+
         for i in range(1,501):
             current_df = df.loc[(i)]
+            
             if (current_time - start_time_ts).total_seconds() <= (6 * 60):
                 plot_df = current_df.query("time <= @current_time")
             else:
@@ -194,8 +289,6 @@ def make_animation(model_output,base_folder='/home/pdaniel/SurfaceCurrentMaps/Da
         plt.savefig(out_name)
         plt.close()
     
-    
-
     fname = model_output.split("_")[3] + "_continuous.gif"
     fp_out = os.path.join(base_folder,'animations',fname)
     build_gif(os.path.join(base_folder,'animation-temp'), fp_out)
@@ -212,7 +305,7 @@ def copy_file_to_webserver(fname):
 
 
 if __name__ ==  "__main__":
-    model_output = 'concave_hrf_20210127T090600_continuous.nc'
+    model_output = 'concave_hrf_20210207T164400_continuous.nc'
     make_animation(model_output)
     
     
