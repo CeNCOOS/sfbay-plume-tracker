@@ -3,6 +3,7 @@ import os
 from opendrift.readers import reader_netCDF_CF_generic
 from opendrift.readers import reader_global_landmask
 from animate_tracks import make_animation
+from static_plots import make_satic_plot
 from opendrift.models.oceandrift import OceanDrift
 import logging
 logging.basicConfig(filename='particle_tracking.log', level=logging.DEBUG)
@@ -82,7 +83,8 @@ class ModelTracker():
                     )
         
         ### Boiler Plate
-        self.o.set_config('general:coastline_action', 'stranding') 
+        # self.o.set_config('general:coastline_action', 'stranding') 
+        self.o.set_config('general:coastline_action', 'previous') 
         self.o.set_config('drift:scheme', 'runge-kutta4')
         self.o.set_config('general:time_step_minutes', 15)
         self.o.set_config('drift:stokes_drift', False)
@@ -95,6 +97,7 @@ class ModelTracker():
                 outfile=os.path.join(self.base_folder,self.fname+"_continuous.nc")
                 )
             make_animation(os.path.join(self.base_folder,self.fname+"_continuous.nc"))
+            make_satic_plot(os.path.join(self.base_folder,self.fname+"_continuous.nc"))
         elif save_trajectories:
             self.o.run(
                 duration=timedelta(hours=self.duration), 

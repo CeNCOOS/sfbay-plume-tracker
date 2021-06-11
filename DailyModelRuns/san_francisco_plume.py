@@ -8,6 +8,7 @@ import pandas as pd
 import datetime as dt
 from run_particle_tracks import ModelTracker
 # logging.basicConfig(filename='retreive_tide_info.log', level=logging.INFO)
+import logging
 for handler in logging.root.handlers[:]:
     logging.root.removeHandler(handler)
 
@@ -88,7 +89,7 @@ def run_model(continuous=False):
         model = ModelTracker(config)
         if check_log(model.fname) == False:
             logging.info('RUNNING: model on: {}'.format(model.start_date))
-            model.run(save_trajectories=False, plot=True, animation=False)
+            model.run(save_trajectories=False, plot=False, animation=False)
             if continuous:
                 model_cont.run(animation=False)
                 # copy_file_to_webserver(model_cont.fname)
