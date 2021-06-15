@@ -92,10 +92,8 @@ def run_model(continuous=False):
             model.run(save_trajectories=False, plot=False, animation=False)
             if continuous:
                 model_cont.run(animation=False)
-                # copy_file_to_webserver(model_cont.fname)
 
             update_log(model.fname, model.start_date)
-            copy_file_to_webserver(model.fname)
         
         else:
             logging.info("SKIPPING: model already ran for: {}".format(model.start_date))

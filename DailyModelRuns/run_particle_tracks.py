@@ -3,7 +3,7 @@ import os
 from opendrift.readers import reader_netCDF_CF_generic
 from opendrift.readers import reader_global_landmask
 from animate_tracks import make_animation
-from static_plots import make_satic_plot
+from static_plots import make_static_plot
 from opendrift.models.oceandrift import OceanDrift
 import logging
 logging.basicConfig(filename='particle_tracking.log', level=logging.DEBUG)
